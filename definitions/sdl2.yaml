@@ -1,0 +1,20 @@
+---
+
+sdl2:
+  2.0.5:
+    parameters:
+      version: 2.0.5
+    build:
+      default:
+        download:
+          url: https://www.libsdl.org/release/SDL2-$version.tar.gz
+          commands:
+            - tar xfz SDL2-$version.tar.gz
+            - rm SDL2-$version.tar.gz
+            - mv SDL2-$version sdl2
+        make:
+          commands:
+            - ./configure --disable-shared --enable-static --prefix=$root --exec-prefix=$root --disable-rpath
+            - make -j$make_concurrency
+            - make install
+

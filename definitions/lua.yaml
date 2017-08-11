@@ -1,0 +1,28 @@
+---
+
+lua:
+  5.3.4:
+    parameters:
+      version: 5.3.4
+    build:
+      default:
+        download:
+          url: https://www.lua.org/ftp/lua-$version.tar.gz
+          commands:
+            - tar xfz lua-$version.tar.gz
+            - rm lua-$version.tar.gz
+            - mv lua-$version lua
+        make:
+          commands:
+            - make -j$make_concurrency linux INSTALL_TOP=$root
+            - make install INSTALL_TOP=$root
+        unmake:
+          commands:
+            - make uninstall INSTALL_TOP=$root
+
+      darwin:
+        make:
+          commands:
+            - make -j$make_concurrency macosx MYCFLAGS=-mmacosx-version-min=10.7 INSTALL_TOP=$root
+            - make install INSTALL_TOP=$root
+
