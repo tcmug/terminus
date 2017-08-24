@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import yaml
+from ruamel import yaml
 import os
 import sys
 import subprocess
@@ -8,6 +8,7 @@ import platform
 import collections
 import hashlib
 import shutil
+import urllib.request
 
 from getopt import getopt, GetoptError
 from string import Template
@@ -50,24 +51,61 @@ def hash_dict(dict):
 
 
 def determine_dependency(name, version):
-    with open(environment['definitions'] + '/' + name + '.yaml', 'r') as stream:
+
+    # Determine URL for username, repository and name.
+    if '/' in name:
         try:
-            cfg = yaml.load(stream)
-            return cfg[name][version].copy()
-        except yaml.YAMLError as exc:
-            print(exc)
+            username, repository, name = name.split('/', 3)
+        except:
+            username, name = name.split('/', 3)
+            repository = name
+    else:
+        username = "tcmug"
+        repository = "terminus"
+
+    url = "https://raw.githubusercontent.com/" + username + "/" + repository + "/master/definitions/" + name + ".yaml"
+
+    # Try loading the yaml file.
+    try:
+        with urllib.request.urlopen(url) as stream:
+            try:
+                cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
+            except yaml.YAMLError as exc:
+                print(exc)
+                print("Cound not load cart " + url)
+                exit(1)
+    except:
+        print("Cound not load cart " + url)
+        exit(1)
+
+    # Fill in the details if package with name & version is found.
+    if name in cfg:
+        if version in cfg[name]:
+            package = cfg[name][version].copy()
+            package['url'] = url
+            package['name'] = name
+            package['username'] = username
+            package['repository'] = repository
+            return package
+        else:
+            print("Cart has no version '" + version + "' for '" + name + "' in " + url)
             exit(1)
+    else:
+        print("Cart: '" + name + "' in " + url + ")")
+        exit(1)
 
 
 class Package:
 
     def __init__(self, name, version, environment):
-        self.name = name
 
         if type(version) is str:
             self.config = determine_dependency(name, version)
         else:
             self.config = version.copy()
+
+        self.config['package_path'] = self.config['username']
+        self.name = self.config['name']
 
         if not 'parameters' in self.config:
             self.config['parameters'] = {}
@@ -90,15 +128,23 @@ class Package:
         self.download_hash = hash_dict(hashable)
 
     def cmd_check(self):
+        if not os.path.exists(self.config['package_path']):
+            os.makedirs(self.config['package_path'])
+        orig_path = os.getcwd()
+        os.chdir(self.config['package_path'])
         status = '\033[92mOK\033[0m'
         if self.requires_download():
             status = '\033[93mDOWNLOAD\033[0m'
         if self.requires_make():
             status = '\033[93mUPDATE\033[0m'
-        print('', self.name.ljust(25), self.environment['version'].ljust(25), status, '')
-
+        print(self.name.ljust(25), self.environment['version'].ljust(25), status)
+        os.chdir(orig_path)
 
     def cmd_install(self):
+        if not os.path.exists(self.config['package_path']):
+            os.makedirs(self.config['package_path'])
+        orig_path = os.getcwd()
+        os.chdir(self.config['package_path'])
         if self.requires_unmake() or self.requires_removal():
             self.run_unmake()
         if self.requires_removal():
@@ -107,7 +153,16 @@ class Package:
             self.download()
         if self.requires_make():
             self.run_make()
+        os.chdir(orig_path)
 
+    def cmd_uninstall(self):
+        if not os.path.exists(self.config['package_path']):
+            os.makedirs(self.config['package_path'])
+        orig_path = os.getcwd()
+        os.chdir(self.config['package_path'])
+        self.run_unmake()
+        self.remove()
+        os.chdir(orig_path)
 
     def call(self, method):
         getattr(self, method)()
@@ -120,7 +175,6 @@ class Package:
 
     def log(self, *args):
         print('\x1b[6;30;42m ' + " ".join(args) + ' \x1b[0m')
-
 
     def run_commands(self, node):
         if 'command' in node:
@@ -152,6 +206,7 @@ class Package:
                 git_params.append('-b')
                 git_params.append(self.build['download']['checkout'])
 
+            print(' '.join(git_params))
             self.shell_cmd(' '.join(git_params))
 
         if 'url' in self.build['download']:
@@ -184,7 +239,6 @@ class Package:
 
         self.set_tag('terminus_build', self.build_hash)
 
-
     def run_unmake(self):
 
         if not os.path.isdir(self.name):
@@ -207,7 +261,8 @@ class Package:
             os.remove(filename)
 
     def set_tag(self, tag, content):
-        with open('/'.join([self.name, tag]),'w') as f:
+        filename = '/'.join([self.name, tag])
+        with open(filename, 'w') as f:
             f.write(content)
 
     def get_tag(self, tag):
@@ -221,11 +276,20 @@ class Package:
 
 
 def help():
-    print("halp!")
+    print("terminus [parameters] install|clean (package)")
+    print("Parameters:")
+    print(" -i --init       Initialize project")
+    print(" -c --config=    Use given configuration file")
+    print(" -v --version=   Version information")
+    print(" -h --help       Get help - this!")
 
 
 def version():
     print(version_string)
+
+
+def initialize():
+    print("---\n\ndependencies:\n\n")
 
 
 def run(argv):
@@ -233,7 +297,7 @@ def run(argv):
 
     # Parse options:
     try:
-        opts, args = getopt(argv, "hdc:o:vst", ["help", "config=", "commands=", "version", "test", "skip-backup", "disable-cache"])
+        opts, args = getopt(argv, "ihc:vt", ["init", "help", "config=", "version", "test"])
     except GetoptError:
         help()
         return
@@ -249,11 +313,16 @@ def run(argv):
         elif opt in ("-v", "--version"):
             version()
             return
-
+        elif opt in ("-i", "--init"):
+            initialize()
+            return
+        elif opt in ("-t", "--test"):
+            with urllib.request.urlopen("https://raw.githubusercontent.com/tcmug/nginxhttpsproxy/master/README.md") as f:
+                print(f.read())
 
     with open('terminus.yaml', 'r') as stream:
         try:
-            cfg = yaml.load(stream)
+            cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
         except yaml.YAMLError as exc:
             print(exc)
             exit(1)
@@ -264,6 +333,11 @@ def run(argv):
         help()
         return
 
+    try:
+        package = args[1]
+    except IndexError:
+        package = False
+
     global environment
     path = environment['packages']
 
@@ -273,9 +347,10 @@ def run(argv):
     root = os.getcwd()
     os.chdir(path)
 
-    for name, config in cfg['dependencies'].items():
+    if package and package not in cfg['dependencies']:
 
-        module = Package(name, config, environment)
+        name, version = package.split('@', 2)
+        module = Package(name, version, environment)
 
         try:
             module.call('_'.join(['cmd', command]))
@@ -283,12 +358,33 @@ def run(argv):
             print('Not a valid command:', command)
             exit(1)
 
-    os.chdir(root)
+        # Write out the new config.
+        os.chdir(root)
+        cfg['dependencies'][name] = version
+        with open('terminus.yaml', 'w') as outfile:
+            yaml.dump(cfg, outfile, Dumper=yaml.RoundTripDumper, default_flow_style=False)
 
-    if 'target' in cfg:
-        if 'commands' in cfg['target']:
-            for command in cfg['target']['commands']:
-                run_cmd(command, environment)
+    else:
+
+        for name, config in cfg['dependencies'].items():
+
+            if package and package != name:
+                continue
+
+            module = Package(name, config, environment)
+
+            try:
+                module.call('_'.join(['cmd', command]))
+            except AttributeError:
+                print('Not a valid command:', command)
+                exit(1)
+
+        os.chdir(root)
+
+        if 'target' in cfg:
+            if 'commands' in cfg['target']:
+                for command in cfg['target']['commands']:
+                    run_cmd(command, environment)
 
 
 # Entry point.
