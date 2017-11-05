@@ -15,4 +15,13 @@ wxwidgets:
             - ../configure --disable-shared --prefix=$root --exec-prefix=$root
             - make -j$make_concurrency
             - make install
-
+      linux:
+        download:
+          git: https://github.com/wxWidgets/wxWidgets.git
+          checkout: v$version
+        make:
+          dir: build-release
+          commands:
+            - ../configure --disable-shared --prefix=$root --exec-prefix=$root CXX="g++ -std=gnu++11"
+            - make -j$make_concurrency
+            - make install
