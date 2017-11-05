@@ -12,7 +12,7 @@ import urllib.request
 from getopt import getopt, GetoptError
 from string import Template
 
-version_string = '0.1'
+version_string = '0.3'
 
 environment = {
     'make': {
@@ -111,6 +111,10 @@ class Package:
 
         temp = self.config['parameters'].copy()
         temp.update(environment)
+
+        if 'version' not in temp:
+            temp['version'] = 'N/A'
+
         self.environment = flatten(temp, '', '_')
         self.build = self.config['build']['default']
         if self.environment['platform'] in self.config['build']:
@@ -136,7 +140,7 @@ class Package:
             status = '\033[93mDOWNLOAD\033[0m'
         if self.requires_make():
             status = '\033[93mUPDATE\033[0m'
-        print(self.name.ljust(25), self.environment['version'].ljust(25), status)
+        print(self.name.ljust(25), str(self.environment['version']).ljust(25), status)
         os.chdir(orig_path)
 
     def cmd_install(self):
@@ -166,11 +170,9 @@ class Package:
     def call(self, method):
         getattr(self, method)()
 
-
     def shell_cmd(self, cmd):
         self.log('EXEC: ', prep_str(cmd, self.environment))
         return subprocess.call(prep_str(cmd, self.environment), shell=True)
-
 
     def log(self, *args):
         print('\x1b[6;30;42m ' + " ".join(args) + ' \x1b[0m')
@@ -181,7 +183,6 @@ class Package:
         elif 'commands' in node:
             for command in node['commands']:
                 self.shell_cmd(command)
-
 
     def requires_download(self):
         return self.get_tag('terminus_download') != self.download_hash
@@ -275,7 +276,7 @@ class Package:
 
 
 def help():
-    print("terminus [parameters] install|clean (package)")
+    print("terminus [parameters] install|uninstall (package)")
     print("Parameters:")
     print(" -i --init       Initialize project")
     print(" -c --config=    Use given configuration file")
@@ -318,12 +319,16 @@ def run(argv):
             with urllib.request.urlopen("https://raw.githubusercontent.com/tcmug/nginxhttpsproxy/master/README.md") as f:
                 print(f.read())
 
-    with open('terminus.yaml', 'r') as stream:
-        try:
-            cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
-        except yaml.YAMLError as exc:
-            print(exc)
-            exit(1)
+    try:
+        with open('terminus.yaml', 'r') as stream:
+            try:
+                cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
+            except yaml.YAMLError as exc:
+                print(exc)
+                exit(1)
+    except FileNotFoundError:
+        print('The file terminus.yaml was not found in this directory')
+        exit(1)
 
     try:
         command = args[0]
@@ -339,37 +344,23 @@ def run(argv):
     global environment
     path = environment['packages']
 
-    if not os.path.isdir(path):
-        os.makedirs(path)
 
-    root = os.getcwd()
-    os.chdir(path)
-
-    if package and package not in cfg['dependencies']:
-
-        name, version = package.split('@', 2)
-        module = Package(name, version, environment)
-
-        try:
-            module.call('_'.join(['cmd', command]))
-        except AttributeError:
-            print('Not a valid command:', command)
-            exit(1)
-
-        # Write out the new config.
-        os.chdir(root)
-        cfg['dependencies'][name] = version
-        with open('terminus.yaml', 'w') as outfile:
-            yaml.dump(cfg, outfile, Dumper=yaml.RoundTripDumper, default_flow_style=False)
-
+    if command in cfg:
+        if 'commands' in cfg[command]:
+            for command in cfg[command]['commands']:
+                run_cmd(command, environment)
     else:
 
-        for name, config in cfg['dependencies'].items():
+        if not os.path.isdir(path):
+            os.makedirs(path)
 
-            if package and package != name:
-                continue
+        root = os.getcwd()
+        os.chdir(path)
 
-            module = Package(name, config, environment)
+        if package and package not in cfg['dependencies']:
+
+            name, version = package.split('@', 2)
+            module = Package(name, version, environment)
 
             try:
                 module.call('_'.join(['cmd', command]))
@@ -377,10 +368,27 @@ def run(argv):
                 print('Not a valid command:', command)
                 exit(1)
 
-        os.chdir(root)
+            # Write out the new config.
+            os.chdir(root)
+            cfg['dependencies'][name] = version
+            with open('terminus.yaml', 'w') as outfile:
+                yaml.dump(cfg, outfile, Dumper=yaml.RoundTripDumper, default_flow_style=False)
 
-        if 'target' in cfg:
-            if 'commands' in cfg['target']:
-                for command in cfg['target']['commands']:
-                    run_cmd(command, environment)
+        else:
+
+            for name, config in cfg['dependencies'].items():
+
+                if package and package != name:
+                    continue
+
+                module = Package(name, config, environment)
+
+                try:
+                    module.call('_'.join(['cmd', command]))
+                except AttributeError as e:
+                    print(e)
+                    print('Not a valid command:', command)
+                    exit(1)
+
+            os.chdir(root)
 
