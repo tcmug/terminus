@@ -1,0 +1,19 @@
+---
+
+fltk:
+  1.3.4-2:
+    parameters:
+        version: 1.3.4-2
+    build:
+      default:
+        download:
+          url: http://fltk.org/pub/fltk/$branch/fltk-$version-source.tar.gz
+          commands:
+            - tar xfz fltk-$version-source.tar.gz
+            - rm fltk-$version-source.tar.gz
+            - mv fltk-$version fltk
+        make:
+          commands:
+            - ./configure --prefix=$root --exec-prefix=$root
+            - make -j$make_concurrency
+            - make install
