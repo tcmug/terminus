@@ -30,9 +30,8 @@ def prep_str(ln, params):
 
 
 def run_cmd(cmd, params):
-    print(prep_str(cmd, params))
-    return subprocess.call(prep_str(cmd, params), shell=True)
-
+    params = flatten(params, '', '_')
+    subprocess.call(prep_str(cmd, params), shell=True)
 
 def flatten(d, parent_key='', sep='_'):
     items = []
@@ -97,7 +96,6 @@ def determine_dependency(name, version):
 class Package:
 
     def __init__(self, name, version, environment):
-
         if type(version) is str:
             self.config = determine_dependency(name, version)
         else:
@@ -114,7 +112,6 @@ class Package:
 
         if 'version' not in temp:
             temp['version'] = 'N/A'
-
         self.environment = flatten(temp, '', '_')
         self.build = self.config['build']['default']
         if self.environment['platform'] in self.config['build']:
@@ -171,6 +168,7 @@ class Package:
         getattr(self, method)()
 
     def shell_cmd(self, cmd):
+
         self.log('EXEC: ', prep_str(cmd, self.environment))
         return subprocess.call(prep_str(cmd, self.environment), shell=True)
 
