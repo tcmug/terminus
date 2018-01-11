@@ -1,5 +1,5 @@
 
-from ruamel import yaml
+import yaml
 import os
 import sys
 import subprocess
@@ -7,12 +7,12 @@ import platform
 import collections
 import hashlib
 import shutil
-import urllib.request
+import requests
 
 from getopt import getopt, GetoptError
 from string import Template
 
-version_string = '0.3'
+version_string = '0.5.6'
 
 environment = {
     'make': {
@@ -32,6 +32,7 @@ def prep_str(ln, params):
 def run_cmd(cmd, params):
     params = flatten(params, '', '_')
     subprocess.call(prep_str(cmd, params), shell=True)
+
 
 def flatten(d, parent_key='', sep='_'):
     items = []
@@ -65,15 +66,15 @@ def determine_dependency(name, version):
 
     # Try loading the yaml file.
     try:
-        with urllib.request.urlopen(url) as stream:
-            try:
-                cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
-            except yaml.YAMLError as exc:
-                print(exc)
-                print("Cound not load cart " + url)
-                exit(1)
+        response = requests.get(url)
+        try:
+            cfg = yaml.load(response.text)
+        except yaml.YAMLError as exc:
+            print(exc)
+            print("Could not load cart " + url)
+            exit(1)
     except:
-        print("Cound not load cart " + url)
+        print("Could not load cart " + url)
         exit(1)
 
     # Fill in the details if package with name & version is found.
@@ -93,6 +94,8 @@ def determine_dependency(name, version):
         exit(1)
 
 
+
+
 class Package:
 
     def __init__(self, name, version, environment):
@@ -109,7 +112,7 @@ class Package:
 
         temp = self.config['parameters'].copy()
         temp.update(environment)
-
+        temp['package_path'] = os.getcwd() + "/" + self.config['package_path']
         if 'version' not in temp:
             temp['version'] = 'N/A'
         self.environment = flatten(temp, '', '_')
@@ -168,7 +171,6 @@ class Package:
         getattr(self, method)()
 
     def shell_cmd(self, cmd):
-
         self.log('EXEC: ', prep_str(cmd, self.environment))
         return subprocess.call(prep_str(cmd, self.environment), shell=True)
 
@@ -208,10 +210,24 @@ class Package:
             self.shell_cmd(' '.join(git_params))
 
         if 'url' in self.build['download']:
-            self.shell_cmd(' '.join(['curl -sOL', self.build['download']['url']]))
+            url = prep_str(self.build['download']['url'], self.environment)
+            filename = url[url.rfind("/")+1:]
+            self._downloadUrl(url, filename)
 
         self.run_commands(self.build['download'])
         self.set_tag('terminus_download', self.download_hash)
+
+
+    def _downloadUrl(self, url, filename):
+        url = prep_str(self.build['download']['url'], self.environment)
+        self.log('DOWNLOAD: ', url, " => ", filename)
+        response = requests.get(url, stream=True)
+        with open(filename, "wb") as f:
+            shutil.copyfileobj(response.raw, f)
+
+    def _getUrl(self, url):
+        return requests.get(url).text
+
 
     def remove(self):
         if not os.path.isdir(self.name):
@@ -273,7 +289,7 @@ class Package:
 
 
 
-def help():
+def cmdline_help():
     print("terminus [parameters] install|uninstall (package)")
     print("Parameters:")
     print(" -i --init       Initialize project")
@@ -282,11 +298,12 @@ def help():
     print(" -h --help       Get help - this!")
 
 
-def version():
+def cmdline_version():
+    global version_string
     print(version_string)
 
 
-def initialize():
+def cmdline_initialize():
     print("---\n\ndependencies:\n\n")
 
 
@@ -294,7 +311,7 @@ def run(argv):
 
     # Parse options:
     try:
-        opts, args = getopt(argv, "ihc:vt", ["init", "help", "config=", "version", "test"])
+        opts, args = getopt(argv, "ihc:v", ["init", "help", "config=", "version"])
     except GetoptError:
         help()
         return
@@ -303,24 +320,21 @@ def run(argv):
 
     for opt, arg in opts:
         if opt in ('-h', "--help"):
-            help()
+            cmdline_help()
             return
         elif opt in ("-c", "--config"):
             config_file = arg
         elif opt in ("-v", "--version"):
-            version()
-            return
+            cmdline_version()
+            exit(1)
         elif opt in ("-i", "--init"):
-            initialize()
+            cmdline_initialize()
             return
-        elif opt in ("-t", "--test"):
-            with urllib.request.urlopen("https://raw.githubusercontent.com/tcmug/nginxhttpsproxy/master/README.md") as f:
-                print(f.read())
 
     try:
         with open('terminus.yaml', 'r') as stream:
             try:
-                cfg = yaml.load(stream, Loader=yaml.RoundTripLoader)
+                cfg = yaml.load(stream)
             except yaml.YAMLError as exc:
                 print(exc)
                 exit(1)
@@ -341,7 +355,6 @@ def run(argv):
 
     global environment
     path = environment['packages']
-
 
     if command in cfg:
         if 'commands' in cfg[command]:
@@ -369,8 +382,8 @@ def run(argv):
             # Write out the new config.
             os.chdir(root)
             cfg['dependencies'][name] = version
-            with open('terminus.yaml', 'w') as outfile:
-                yaml.dump(cfg, outfile, Dumper=yaml.RoundTripDumper, default_flow_style=False)
+            with open('terminus.new', 'w') as outfile:
+                yaml.dump(cfg, outfile)
 
         else:
 

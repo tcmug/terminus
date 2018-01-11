@@ -1,6 +1,6 @@
 dist
 build
-terminus.egg-info
+terminus_tool.egg-info
 __pycache__
 old
 .DS_Store

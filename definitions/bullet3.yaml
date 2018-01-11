@@ -1,16 +1,17 @@
 ---
 
 bullet3:
-  2.86.1:
+  "2.87":
     parameters:
-      version: 2.86.1
+      version: "2.87"
     build:
       default:
         download:
           git: https://github.com/bulletphysics/bullet3.git
+          checkout: "2.87"
         make:
           dir: bullet-build
           commands:
             - cmake .. -G "Unix Makefiles" -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=$root -DCMAKE_INSTALL_RPATH=$root
             - make -j$make_concurrency
-            - sudo make install
+            - make install

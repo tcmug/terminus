@@ -23,6 +23,6 @@ lua:
       darwin:
         make:
           commands:
-            - make -j$make_concurrency macosx MYCFLAGS=-mmacosx-version-min=10.7 INSTALL_TOP=$root
+            - make -j$make_concurrency macosx MYCFLAGS=-arch x86_64 -mmacosx-version-min=10.7 INSTALL_TOP=$root
             - make install INSTALL_TOP=$root
 
