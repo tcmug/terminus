@@ -17,4 +17,9 @@ sdl2:
             - ./configure --disable-shared --enable-static --prefix=$root --exec-prefix=$root --disable-rpath
             - make -j$make_concurrency
             - make install
-
+      linux:
+        make:
+          commands:
+            - ./configure --disable-shared --enable-static --prefix=$root --exec-prefix=$root --disable-rpath CFLAGS=-fPIC LDFLAGS=-fPIC
+            - make -j$make_concurrency
+            - make install
