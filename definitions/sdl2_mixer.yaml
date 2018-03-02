@@ -17,3 +17,15 @@ sdl2_mixer:
             - ./configure --prefix=$root
             - make -j$make_concurrency
             - make install
+      darwin:
+        make:
+          commands:
+            - ./configure --prefix=$root
+            - make -j$make_concurrency
+            - make install
+      linux:
+        make:
+          commands:
+            - ./configure --prefix=$root CFLAGS=-fPIC LDFLAGS=-fPIC
+            - make -j$make_concurrency
+            - make install
