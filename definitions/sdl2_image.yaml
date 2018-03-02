@@ -1,0 +1,24 @@
+
+sdl2_image:
+  "2.0.1":
+    parameters:
+      version: 2.0.1
+    build:
+      default:
+        download:
+          url: https://www.libsdl.org/projects/SDL_image/release/SDL2_image-$version.tar.gz
+          commands:
+            - tar xfz SDL2_image-$version.tar.gz
+            - rm SDL2_image-$version.tar.gz
+            - mv SDL2_image-$version sdl2_image
+        make:
+          commands:
+            - ./configure --prefix=$root
+            - make -j$make_concurrency
+            - make install
+      linux:
+        make:
+          commands:
+            - ./configure --prefix=$root CFLAGS=-fPIC LDFLAGS=-fPIC
+            - make -j$make_concurrency
+            - make install
