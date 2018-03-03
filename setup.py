@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='terminus-tool',
-    version='0.5.6',
+    version='0.5.7',
     scripts=['terminus'],
     description='Experimental C/C++ source package manager',
     #long_description=long_description,

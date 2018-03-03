@@ -12,7 +12,7 @@ import requests
 from getopt import getopt, GetoptError
 from string import Template
 
-version_string = '0.5.6'
+version_string = '0.5.7'
 
 environment = {
     'make': {
@@ -49,9 +49,13 @@ def hash_dict(dict):
     return hashlib.sha1(str(dict).encode('utf-8')).hexdigest()
 
 
-def determine_dependency(name, version):
+def cart(cart_name):
 
-    # Determine URL for username, repository and name.
+    if cart_name in cart.carts:
+        return cart.carts[cart_name]
+
+    name = cart_name
+
     if '/' in name:
         try:
             username, repository, name = name.split('/', 3)
@@ -68,26 +72,48 @@ def determine_dependency(name, version):
     try:
         response = requests.get(url)
         try:
-            cfg = yaml.load(response.text)
+            cart.carts[cart_name] = yaml.load(response.text)
+            cart.carts[cart_name]['_url'] = url
+            cart.carts[cart_name]['_username'] = username
+            cart.carts[cart_name]['_repository'] = repository
         except yaml.YAMLError as exc:
-            print(exc)
             print("Could not load cart " + url)
             exit(1)
     except:
         print("Could not load cart " + url)
         exit(1)
 
+    return cart.carts[cart_name]
+
+cart.carts = {}
+
+def dependency_versions(name):
+
+    cfg = cart(name)
+
+    # Fill in the details if package with name & version is found.
+    if name in cfg:
+        return cfg[name].keys()
+    else:
+        print("Cart: '" + name + "' in " + url + ")")
+        exit(1)
+
+
+def determine_dependency(name, version):
+
+    cfg = cart(name)
+
     # Fill in the details if package with name & version is found.
     if name in cfg:
         if version in cfg[name]:
             package = cfg[name][version].copy()
-            package['url'] = url
+            package['url'] = cfg['_url']
             package['name'] = name
-            package['username'] = username
-            package['repository'] = repository
+            package['username'] = cfg['_username']
+            package['repository'] = cfg['_repository']
             return package
         else:
-            print("Cart has no version '" + version + "' for '" + name + "' in " + url)
+            print("Cart has no version '" + version + "' for '" + name + "' in " + cfg['_url'])
             exit(1)
     else:
         print("Cart: '" + name + "' in " + url + ")")
@@ -99,6 +125,7 @@ def determine_dependency(name, version):
 class Package:
 
     def __init__(self, name, version, environment):
+
         if type(version) is str:
             self.config = determine_dependency(name, version)
         else:
@@ -206,7 +233,6 @@ class Package:
                 git_params.append('-b')
                 git_params.append(self.build['download']['checkout'])
 
-            print(' '.join(git_params))
             self.shell_cmd(' '.join(git_params))
 
         if 'url' in self.build['download']:
@@ -250,7 +276,6 @@ class Package:
             self.run_commands(make)
 
         os.chdir(prev)
-
         self.set_tag('terminus_build', self.build_hash)
 
     def run_unmake(self):
@@ -370,7 +395,16 @@ def run(argv):
 
         if package and package not in cfg['dependencies']:
 
-            name, version = package.split('@', 2)
+            try:
+                name, version = package.split('@', 2)
+            except:
+                name = package
+                versions = dependency_versions(name)
+                print("Available versions: ")
+                for i in versions:
+                    print(i)
+                version = input("Type version string to use: ")
+
             module = Package(name, version, environment)
 
             try:
