@@ -1,23 +1,17 @@
 ---
 
-sdl2_mixer:
-  2.0.1:
+sdl2_image:
+  "2.0.1":
     parameters:
       version: 2.0.1
     build:
       default:
         download:
-          url: https://www.libsdl.org/projects/SDL_mixer/release/SDL2_mixer-$version.tar.gz
+          url: https://www.libsdl.org/projects/SDL_image/release/SDL2_image-$version.tar.gz
           commands:
-            - tar xfz SDL2_mixer-$version.tar.gz
-            - rm SDL2_mixer-$version.tar.gz
-            - mv SDL2_mixer-$version sdl2_mixer
-        make:
-          commands:
-            - ./configure --prefix=$root
-            - make -j$make_concurrency
-            - make install
-      darwin:
+            - tar xfz SDL2_image-$version.tar.gz
+            - rm SDL2_image-$version.tar.gz
+            - mv SDL2_image-$version sdl2_image
         make:
           commands:
             - ./configure --prefix=$root

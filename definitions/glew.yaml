@@ -1,0 +1,18 @@
+---
+
+glew:
+  "2.1.0":
+    parameters:
+      version: 2.1.0
+    build:
+      default:
+        download:
+          url: https://github.com/nigels-com/glew/releases/download/glew-$version/glew-$version.tgz
+          commands:
+            - tar xfz glew-$version.tgz
+            - rm glew-$version.tgz
+            - mv glew-$version glew
+        make:
+          commands:
+            - make GLEW_DEST="$root"
+            - make install GLEW_DEST="$root"

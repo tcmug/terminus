@@ -1,0 +1,27 @@
+---
+
+sdl2_ttf:
+  "2.0.14":
+    name: sdl2_ttf
+    username: local
+    parameters:
+      version: 2.0.14
+    build:
+      default:
+        download:
+          url: https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-$version.tar.gz
+          commands:
+            - tar xfz SDL2_ttf-$version.tar.gz
+            - rm SDL2_ttf-$version.tar.gz
+            - mv SDL2_ttf-$version sdl2_ttf
+        make:
+          commands:
+            - ./configure --prefix=$root
+            - make -j$make_concurrency
+            - make install
+      linux:
+        make:
+          commands:
+            - ./configure --prefix=$root CFLAGS=-fPIC LDFLAGS=-fPIC
+            - make -j$make_concurrency
+            - make install
