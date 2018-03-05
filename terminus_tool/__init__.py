@@ -95,7 +95,7 @@ def dependency_versions(name):
     if name in cfg:
         return cfg[name].keys()
     else:
-        print("Cart: '" + name + "' in " + url + ")")
+        print("Cart: '" + name + "' in " + cfg["_url"] + ")")
         exit(1)
 
 
